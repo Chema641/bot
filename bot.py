@@ -36,13 +36,6 @@ app = Flask(__name__)
 def home():
     return "Bot de Discord funcionando correctamente 24/7."
 
-def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
-
-# =========================================================
-# FUNCIONES AUXILIARES DE ATERNOS
-# =========================================================
 # =========================================================
 # FUNCIONES AUXILIARES DE ATERNOS
 # =========================================================
@@ -69,6 +62,14 @@ def init_aternos():
     except Exception as e:
         print(f">>> Error crítico al conectar con Aternos: {e}")
         ATERNOS_SERVER_INSTANCE = None
+
+def get_aternos_server():
+    """Obtiene la instancia global del servidor. Si no existe, intenta reconectarla."""
+    global ATERNOS_SERVER_INSTANCE
+    if ATERNOS_SERVER_INSTANCE is None:
+        init_aternos()
+    return ATERNOS_SERVER_INSTANCE
+
 # =========================================================
 # INICIALIZACIÓN DE DISCORD
 # =========================================================
@@ -99,9 +100,6 @@ async def actualizar_estado_presencia():
 @bot.event
 async def on_ready():
     print(f"Bot conectado con éxito como {bot.user}")
-    
-    # Inicializar la conexión a Aternos al arrancar el bot
-    init_aternos()
 
     if not actualizar_estado_presencia.is_running():
         actualizar_estado_presencia.start()
