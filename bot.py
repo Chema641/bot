@@ -44,11 +44,13 @@ def run_web_server():
 # FUNCIONES AUXILIARES DE ATERNOS
 # =========================================================
 def init_aternos():
-    """Inicia sesión global en Aternos una sola vez."""
+    """Inicia sesión global en Aternos usando la sintaxis actualizada de python-aternos."""
     global ATERNOS_SERVER_INSTANCE
     try:
         print("Intentando autenticar con Aternos...")
-        aternos = AternosClient.from_credentials(session=ATERNOS_SESSION)
+        # En la versión actual de python-aternos se pasa la session directamente al constructor
+        aternos = AternosClient(ATERNOS_SESSION)
+        
         servers = aternos.list_servers()
         if servers:
             ATERNOS_SERVER_INSTANCE = servers[0]
@@ -58,13 +60,6 @@ def init_aternos():
     except Exception as e:
         print(f"Error crítico al conectar con Aternos: {e}")
         ATERNOS_SERVER_INSTANCE = None
-
-def get_aternos_server():
-    """Obtiene la instancia global. Si es None, reintenta autenticar."""
-    global ATERNOS_SERVER_INSTANCE
-    if ATERNOS_SERVER_INSTANCE is None:
-        init_aternos()
-    return ATERNOS_SERVER_INSTANCE
 
 # =========================================================
 # INICIALIZACIÓN DE DISCORD
