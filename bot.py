@@ -1,6 +1,7 @@
 import os
 import threading
 import discord
+import cloudscraper
 from discord import app_commands
 from discord.ext import commands, tasks
 from mcstatus import JavaServer
@@ -24,7 +25,7 @@ REGLAS_TEXT = """
 5. Diviértete: Cualquier duda o sugerencia avísale a los admins!
 """
 
-# Instancia global del servidor para no hacer login repetitivo
+# Instancia global del servidor
 ATERNOS_SERVER_INSTANCE = None
 
 # =========================================================
@@ -37,26 +38,30 @@ def home():
     return "Bot de Discord funcionando correctamente 24/7."
 
 # =========================================================
-# FUNCIONES AUXILIARES DE ATERNOS
-# =========================================================
-# =========================================================
-# FUNCIONES AUXILIARES DE ATERNOS
+# FUNCIONES AUXILIARES DE ATERNOS CON CLOUDSCRAPER
 # =========================================================
 def init_aternos():
-    """Inicia sesión simulando un navegador real para mitigar filtros de Cloudflare."""
+    """Inicia sesión utilizando cloudscraper para evadir los retos JS de Cloudflare."""
     global ATERNOS_SERVER_INSTANCE
     try:
-        print(">>> [1/4] Creando instancia de Aternos...")
+        print(">>> [1/4] Creando scraper evasivo de Cloudflare...")
+        
+        # Crear un scraper que simula un navegador real en Linux
+        scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'linux',
+                'desktop': True
+            }
+        )
+        
+        # Inicializar el cliente de Aternos
         aternos = AternosClient()
         
-        # 1. Configurar User-Agent idéntico a un navegador real (Chrome en Linux)
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
-            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-        }
-        aternos.session.headers.update(headers)
-
-        # 2. Asignar la cookie
+        # Inyectar el scraper como la sesión interna de Aternos
+        aternos.session = scraper
+        
+        # Configurar cookies
         aternos.session.cookies.set('ATERNOS_SESSION', ATERNOS_SESSION, domain='aternos.org')
         
         print(">>> [2/4] Solicitando lista de servidores a Aternos...")
@@ -74,7 +79,7 @@ def init_aternos():
         ATERNOS_SERVER_INSTANCE = None
 
 def get_aternos_server():
-    """Obtiene la instancia global del servidor. Si no existe, reintenta iniciarla."""
+    """Obtiene la instancia global del servidor. Si no existe, intenta reconectarla."""
     global ATERNOS_SERVER_INSTANCE
     if ATERNOS_SERVER_INSTANCE is None:
         init_aternos()
@@ -124,7 +129,7 @@ async def on_ready():
 # COMANDOS DE DISCORD
 # =========================================================
 
-# 1. EMPEZAR (ATERNOS)
+# 1. EMPEZAR
 @bot.tree.command(name="empezar", description="Enciende el servidor de Minecraft en Aternos")
 async def empezar(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -135,7 +140,6 @@ async def empezar(interaction: discord.Interaction):
             await interaction.followup.send("No se pudo conectar a Aternos. La cookie ATERNOS_SESSION expiró o fue bloqueada por Cloudflare.")
             return
 
-        # Refrescar estado antes de actuar
         srv.fetch()
 
         if srv.status == "online":
@@ -164,7 +168,7 @@ async def empezar(interaction: discord.Interaction):
         )
         await interaction.followup.send(embed=embed)
 
-# 2. DETENER (ATERNOS)
+# 2. DETENER
 @bot.tree.command(name="detener", description="Apaga el servidor de Minecraft en Aternos")
 async def detener(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -310,15 +314,12 @@ async def ayuda(interaction: discord.Interaction):
 # EJECUCIÓN CONJUNTA
 # =========================================================
 if __name__ == "__main__":
-    # 1. Inicia el servidor Flask en segundo plano (daemon thread)
     port = int(os.environ.get("PORT", 10000))
     t = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port, use_reloader=False))
     t.daemon = True
     t.start()
 
-    # 2. Inicia sesión en Aternos antes de lanzar la conexión de Discord
     print(">>> Inicializando servicios del bot...")
     init_aternos()
 
-    # 3. Arranca el bot de Discord
     bot.run(TOKEN)
