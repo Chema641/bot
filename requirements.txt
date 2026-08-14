@@ -1,0 +1,4 @@
+discord.py
+mcstatus
+python-aternos
+Flask
