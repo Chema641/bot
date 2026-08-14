@@ -10,13 +10,9 @@ from flask import Flask
 # =========================================================
 # CONFIGURACIÓN DEL BOT Y SERVIDORES
 # =========================================================
-# Token de tu bot de Discord
-TOKEN = os.getenv("DISCORD_TOKEN", "TU_TOKEN_DE_DISCORD_AQUI")
+TOKEN = os.getenv("DISCORD_TOKEN", "TU_TOKEN_DE_DISCORD_AQUI").strip()
+ATERNOS_SESSION = os.getenv("ATERNOS_SESSION", "TU_COOKIE_ATERNOS_SESSION_AQUI").strip()
 
-# Cookie de Sesión de Aternos (ATERNOS_SESSION obtenida de las cookies del navegador)
-ATERNOS_SESSION = os.getenv("ATERNOS_SESSION", "TU_COOKIE_ATERNOS_SESSION_AQUI")
-
-# IP/Dominio del servidor
 SERVER_IP_TEXT = "background-ears.gl.joinmc.link"
 SERVER_ADDRESS = "background-ears.gl.joinmc.link:25565"
 
@@ -27,6 +23,9 @@ REGLAS_TEXT = """
 4. Fair Play: Prohibido el uso de hacks, X-Ray o clientes modificados con ventajas.
 5. Diviértete: Cualquier duda o sugerencia avísale a los admins!
 """
+
+# Instancia global del servidor para no hacer login repetitivo
+ATERNOS_SERVER_INSTANCE = None
 
 # =========================================================
 # SERVIDOR WEB PARA HEALTH CHECKS DE RENDER
@@ -44,17 +43,28 @@ def run_web_server():
 # =========================================================
 # FUNCIONES AUXILIARES DE ATERNOS
 # =========================================================
-def get_aternos_server():
-    """Conecta a la API de Aternos usando la cookie de sesión y recupera la instancia del servidor."""
+def init_aternos():
+    """Inicia sesión global en Aternos una sola vez."""
+    global ATERNOS_SERVER_INSTANCE
     try:
-        # Autenticación mediante Session Cookie para omitir bloqueos/credenciales incorrectas
+        print("Intentando autenticar con Aternos...")
         aternos = AternosClient.from_credentials(session=ATERNOS_SESSION)
         servers = aternos.list_servers()
         if servers:
-            return servers[0]
+            ATERNOS_SERVER_INSTANCE = servers[0]
+            print(f"Conexión exitosa con Aternos: {ATERNOS_SERVER_INSTANCE.name}")
+        else:
+            print("No se encontraron servidores en la cuenta de Aternos.")
     except Exception as e:
-        print(f"Error al conectar con Aternos: {e}")
-    return None
+        print(f"Error crítico al conectar con Aternos: {e}")
+        ATERNOS_SERVER_INSTANCE = None
+
+def get_aternos_server():
+    """Obtiene la instancia global. Si es None, reintenta autenticar."""
+    global ATERNOS_SERVER_INSTANCE
+    if ATERNOS_SERVER_INSTANCE is None:
+        init_aternos()
+    return ATERNOS_SERVER_INSTANCE
 
 # =========================================================
 # INICIALIZACIÓN DE DISCORD
@@ -67,7 +77,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # =========================================================
 @tasks.loop(seconds=30)
 async def actualizar_estado_presencia():
-    """Actualiza la actividad del bot dependiendo del estado en Aternos / Minecraft."""
+    """Actualiza la actividad del bot dependiendo del estado en Minecraft."""
     try:
         server = JavaServer.lookup(SERVER_ADDRESS)
         status = server.status()
@@ -86,6 +96,9 @@ async def actualizar_estado_presencia():
 @bot.event
 async def on_ready():
     print(f"Bot conectado con éxito como {bot.user}")
+    
+    # Inicializar la conexión a Aternos al arrancar el bot
+    init_aternos()
 
     if not actualizar_estado_presencia.is_running():
         actualizar_estado_presencia.start()
@@ -108,8 +121,11 @@ async def empezar(interaction: discord.Interaction):
     try:
         srv = get_aternos_server()
         if not srv:
-            await interaction.followup.send("No se pudo conectar a la cuenta de Aternos. Revisa el token ATERNOS_SESSION.")
+            await interaction.followup.send("No se pudo conectar a Aternos. La cookie ATERNOS_SESSION expiró o fue bloqueada por Cloudflare.")
             return
+
+        # Refrescar estado antes de actuar
+        srv.fetch()
 
         if srv.status == "online":
             await interaction.followup.send("El servidor ya se encuentra encendido. Pueden entrar a jugar.")
@@ -119,7 +135,6 @@ async def empezar(interaction: discord.Interaction):
             await interaction.followup.send("El servidor ya se está encendiendo. Dale un par de minutos.")
             return
 
-        # Envía la orden de inicio a Aternos
         srv.start()
 
         embed = discord.Embed(
@@ -148,6 +163,8 @@ async def detener(interaction: discord.Interaction):
         if not srv:
             await interaction.followup.send("No se pudo conectar a la cuenta de Aternos.")
             return
+
+        srv.fetch()
 
         if srv.status == "offline":
             await interaction.followup.send("El servidor ya se encuentra apagado.")
@@ -282,10 +299,8 @@ async def ayuda(interaction: discord.Interaction):
 # EJECUCIÓN CONJUNTA
 # =========================================================
 if __name__ == "__main__":
-    # Inicia el servidor web Flask en un hilo separado
     t = threading.Thread(target=run_web_server)
     t.daemon = True
     t.start()
 
-    # Arranca el bot de Discord
     bot.run(TOKEN)
