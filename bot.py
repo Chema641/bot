@@ -43,28 +43,37 @@ def run_web_server():
 # =========================================================
 # FUNCIONES AUXILIARES DE ATERNOS
 # =========================================================
+# =========================================================
+# FUNCIONES AUXILIARES DE ATERNOS
+# =========================================================
 def init_aternos():
-    """Inicia sesión usando la función de fábrica de la librería python-aternos."""
+    """Inicia sesión en Aternos con trazas de diagnóstico."""
     global ATERNOS_SERVER_INSTANCE
     try:
-        print("Intentando autenticar con Aternos...")
-        
-        # Probar usando el método directly sobre el módulo o login manual
-        from python_aternos import Client
-        aternos = Client()
-        # Inyectar la cookie directamente a la sesión HTTP interna
+        print(">>> [1/4] Creando instancia de Aternos...")
+        aternos = AternosClient()
         aternos.session.cookies.set('ATERNOS_SESSION', ATERNOS_SESSION)
         
+        print(">>> [2/4] Solicitando lista de servidores a Aternos...")
         servers = aternos.list_servers()
+        
+        print(f">>> [3/4] Servidores encontrados: {len(servers)}")
         if servers:
             ATERNOS_SERVER_INSTANCE = servers[0]
-            print(f"Conexión exitosa con Aternos: {ATERNOS_SERVER_INSTANCE.name}")
+            print(f">>> [4/4] Conexión exitosa con servidor: {ATERNOS_SERVER_INSTANCE.name}")
         else:
-            print("No se encontraron servidores en la cuenta de Aternos.")
+            print(">>> [4/4] No se encontraron servidores en la cuenta.")
+            
     except Exception as e:
-        print(f"Error crítico al conectar con Aternos: {e}")
+        print(f">>> Error crítico al conectar con Aternos: {e}")
         ATERNOS_SERVER_INSTANCE = None
 
+def get_aternos_server():
+    """Obtiene la instancia global del servidor. Si no existe, reintenta iniciarla."""
+    global ATERNOS_SERVER_INSTANCE
+    if ATERNOS_SERVER_INSTANCE is None:
+        init_aternos()
+    return ATERNOS_SERVER_INSTANCE
 # =========================================================
 # INICIALIZACIÓN DE DISCORD
 # =========================================================
