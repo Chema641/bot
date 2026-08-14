@@ -299,8 +299,15 @@ async def ayuda(interaction: discord.Interaction):
 # EJECUCIÓN CONJUNTA
 # =========================================================
 if __name__ == "__main__":
-    t = threading.Thread(target=run_web_server)
+    # 1. Inicia el servidor Flask en segundo plano (daemon thread)
+    port = int(os.environ.get("PORT", 10000))
+    t = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port, use_reloader=False))
     t.daemon = True
     t.start()
 
+    # 2. Inicia sesión en Aternos antes de lanzar la conexión de Discord
+    print(">>> Inicializando servicios del bot...")
+    init_aternos()
+
+    # 3. Arranca el bot de Discord
     bot.run(TOKEN)
