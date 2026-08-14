@@ -40,13 +40,20 @@ def home():
 # FUNCIONES AUXILIARES DE ATERNOS
 # =========================================================
 def init_aternos():
-    """Inicia sesión inyectando la cookie con el dominio de Aternos."""
+    """Inicia sesión simulando un navegador real para mitigar filtros de Cloudflare."""
     global ATERNOS_SERVER_INSTANCE
     try:
         print(">>> [1/4] Creando instancia de Aternos...")
         aternos = AternosClient()
         
-        # Asignar la cookie indicando el dominio exacto
+        # 1. Configurar User-Agent idéntico a un navegador real (Chrome en Linux)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        }
+        aternos.session.headers.update(headers)
+
+        # 2. Asignar la cookie
         aternos.session.cookies.set('ATERNOS_SESSION', ATERNOS_SESSION, domain='aternos.org')
         
         print(">>> [2/4] Solicitando lista de servidores a Aternos...")
@@ -60,15 +67,8 @@ def init_aternos():
             print(">>> [4/4] No se encontraron servidores en la cuenta.")
             
     except Exception as e:
-        print(f">>> Error crítico al conectar con Aternos: {e}")
+        print(f">>> Error crítico al conectar con Aternos: {type(e).__name__} - {e}")
         ATERNOS_SERVER_INSTANCE = None
-
-def get_aternos_server():
-    """Obtiene la instancia global del servidor. Si no existe, intenta reconectarla."""
-    global ATERNOS_SERVER_INSTANCE
-    if ATERNOS_SERVER_INSTANCE is None:
-        init_aternos()
-    return ATERNOS_SERVER_INSTANCE
 
 # =========================================================
 # INICIALIZACIÓN DE DISCORD
