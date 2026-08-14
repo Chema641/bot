@@ -78,17 +78,16 @@ async def encender(interaction: discord.Interaction):
     await interaction.response.send_message("⏳ Intentando enviar la orden de encendido a Aternos...")
     
     def start_aternos():
-    # Crear cliente de Aternos pasando la cookie correctamente
-    aternos = AternosClient()
-    # Inyectar las cookies de sesión en la sesión de requests interna del cliente
-    aternos.at_session.cookies.set("ATERNOS_SESSION", ATERNOS_SESSION)
-    
-    servers = aternos.list_servers()
-    if servers:
-        servidor = servers[0]
-        servidor.start()
-        return True, servidor.status
-    return False, "No se encontraron servidores asociados a la cuenta."
+        # ¡Atención aquí! Estas líneas deben llevar 8 espacios de sangría
+        aternos = AternosClient()
+        aternos.at_session.cookies.set("ATERNOS_SESSION", ATERNOS_SESSION)
+        
+        servers = aternos.list_servers()
+        if servers:
+            servidor = servers[0]
+            servidor.start()
+            return True, servidor.status
+        return False, "No se encontraron servidores asociados a la cuenta."
 
     try:
         # Ejecutar llamada de aternos en un hilo secundario
