@@ -13,20 +13,19 @@ from flask import Flask
 # Token de tu bot de Discord
 TOKEN = os.getenv("DISCORD_TOKEN", "TU_TOKEN_DE_DISCORD_AQUI")
 
-# Credenciales de tu cuenta de Aternos
-ATERNOS_USER = os.getenv("ATERNOS_USER", "TU_USUARIO_ATERNOS")
-ATERNOS_PASS = os.getenv("ATERNOS_PASS", "TU_CONTRASEÑA_ATERNOS")
+# Cookie de Sesión de Aternos (ATERNOS_SESSION obtenida de las cookies del navegador)
+ATERNOS_SESSION = os.getenv("ATERNOS_SESSION", "TU_COOKIE_ATERNOS_SESSION_AQUI")
 
-# IP/Dominio del servidor (Ejemplo: "miservidor.aternos.me")
-SERVER_IP_TEXT = "background-ears.gl.joinmc.link"  # Cambia por tu IP de Aternos
+# IP/Dominio del servidor
+SERVER_IP_TEXT = "background-ears.gl.joinmc.link"
 SERVER_ADDRESS = "background-ears.gl.joinmc.link:25565"
 
 REGLAS_TEXT = """
-1. **Respeto mutuo:** Tratar bien a todos los miembros en el chat y voz.
-2. **Cero Griefing:** Prohibido destruir o alterar construcciones ajenas sin permiso.
-3. **Pertenencias:** Respetar los cofres y ítems de los demás jugadores.
-4. **Fair Play:** Prohibido el uso de hacks, X-Ray o clientes modificados con ventajas.
-5. **Diviértete:** ¡Cualquier duda o sugerencia avísale a los admins!
+1. Respeto mutuo: Tratar bien a todos los miembros en el chat y voz.
+2. Cero Griefing: Prohibido destruir o alterar construcciones ajenas sin permiso.
+3. Pertenencias: Respetar los cofres y items de los demás jugadores.
+4. Fair Play: Prohibido el uso de hacks, X-Ray o clientes modificados con ventajas.
+5. Diviértete: Cualquier duda o sugerencia avísale a los admins!
 """
 
 # =========================================================
@@ -46,9 +45,10 @@ def run_web_server():
 # FUNCIONES AUXILIARES DE ATERNOS
 # =========================================================
 def get_aternos_server():
-    """Conecta a la API de Aternos y recupera la instancia del servidor."""
+    """Conecta a la API de Aternos usando la cookie de sesión y recupera la instancia del servidor."""
     try:
-        aternos = AternosClient.from_credentials(ATERNOS_USER, ATERNOS_PASS)
+        # Autenticación mediante Session Cookie para omitir bloqueos/credenciales incorrectas
+        aternos = AternosClient.from_credentials(session=ATERNOS_SESSION)
         servers = aternos.list_servers()
         if servers:
             return servers[0]
@@ -72,7 +72,7 @@ async def actualizar_estado_presencia():
         server = JavaServer.lookup(SERVER_ADDRESS)
         status = server.status()
         count = status.players.online
-        
+
         await bot.change_presence(
             status=discord.Status.online,
             activity=discord.Game(name=f"Minecraft ({count} jug)")
@@ -80,13 +80,13 @@ async def actualizar_estado_presencia():
     except Exception:
         await bot.change_presence(
             status=discord.Status.dnd,
-            activity=discord.Game(name="Servidor Mimido / Iniciando")
+            activity=discord.Game(name="Servidor Apagado / Iniciando")
         )
 
 @bot.event
 async def on_ready():
     print(f"Bot conectado con éxito como {bot.user}")
-    
+
     if not actualizar_estado_presencia.is_running():
         actualizar_estado_presencia.start()
 
@@ -108,22 +108,22 @@ async def empezar(interaction: discord.Interaction):
     try:
         srv = get_aternos_server()
         if not srv:
-            await interaction.followup.send("❌ No se pudo conectar a la cuenta de Aternos. Revisa las credenciales.")
+            await interaction.followup.send("No se pudo conectar a la cuenta de Aternos. Revisa el token ATERNOS_SESSION.")
             return
 
         if srv.status == "online":
-            await interaction.followup.send("🟢 **El servidor ya se encuentra encendido.** ¡Pueden entrar a jugar!")
+            await interaction.followup.send("El servidor ya se encuentra encendido. Pueden entrar a jugar.")
             return
 
-        if srv.status == "starting" or srv.status == "loading":
-            await interaction.followup.send("⏳ **El servidor ya se está encendiendo.** Dale un par de minutos.")
+        if srv.status in ["starting", "loading"]:
+            await interaction.followup.send("El servidor ya se está encendiendo. Dale un par de minutos.")
             return
 
         # Envía la orden de inicio a Aternos
         srv.start()
 
         embed = discord.Embed(
-            title="Solicitud enviada a Aternos 🚀",
+            title="Solicitud enviada a Aternos",
             description="El servidor de Minecraft ha recibido la orden de arranque.\nSi hay cola de espera en Aternos, tardará unos minutos en abrirse.",
             color=discord.Color.green()
         )
@@ -146,17 +146,17 @@ async def detener(interaction: discord.Interaction):
     try:
         srv = get_aternos_server()
         if not srv:
-            await interaction.followup.send("❌ No se pudo conectar a la cuenta de Aternos.")
+            await interaction.followup.send("No se pudo conectar a la cuenta de Aternos.")
             return
 
         if srv.status == "offline":
-            await interaction.followup.send("🔴 **El servidor ya se encuentra apagado.**")
+            await interaction.followup.send("El servidor ya se encuentra apagado.")
             return
 
         srv.stop()
 
         embed = discord.Embed(
-            title="Servidor Apagado 🛑",
+            title="Servidor Apagado",
             description="Se ha enviado la orden de apagar a Aternos. Guardando mapa y cerrando sesión...",
             color=discord.Color.red()
         )
@@ -192,15 +192,16 @@ async def estado(interaction: discord.Interaction):
 
         players_online = status.players.online
         players_max = status.players.max
-        
+
         if status.players.sample:
-            player_list = "\n".join([f"• {player.name}" for player in status.players.sample])
+            player_list = "\n".join([f"- {player.name}" for player in status.players.sample])
         elif players_online > 0:
             player_list = "Jugadores conectados."
         else:
             player_list = "*No hay nadie conectado en este momento.*"
 
-        embed = discord.Embed(title="Servidor En Línea 🟢", color=discord.Color.green())
+        embed = discord.Embed(title="Servidor En Línea", color=discord.Color.green())
+        embed.add_field(name="IP", value=f"`{SERVER_IP_TEXT}`", inline=False)
         embed.add_field(name="Jugadores", value=f"**{players_online} / {players_max}**", inline=True)
         embed.add_field(name="Ping", value=f"**{round(status.latency)} ms**", inline=True)
         embed.add_field(name="Versión", value=f"**{status.version.name}**", inline=False)
@@ -210,7 +211,7 @@ async def estado(interaction: discord.Interaction):
 
     except Exception:
         embed = discord.Embed(
-            title="Servidor Offline / Cargando 🔴",
+            title="Servidor Offline / Cargando",
             description="El servidor está apagado o iniciando. Puedes encenderlo con `/empezar`.",
             color=discord.Color.red()
         )
@@ -224,7 +225,7 @@ async def jugadores(interaction: discord.Interaction):
     try:
         server = JavaServer.lookup(SERVER_ADDRESS)
         status = server.status()
-        
+
         if status.players.online == 0:
             embed = discord.Embed(
                 title="Jugadores Conectados (0)",
@@ -269,12 +270,12 @@ async def ayuda(interaction: discord.Interaction):
     )
     embed.add_field(name="/empezar", value="Enciende el servidor en Aternos.", inline=False)
     embed.add_field(name="/detener", value="Apaga el servidor en Aternos.", inline=False)
-    embed.add_field(name="/estado", value="Revisa si el servidor está listo, ping y versión.", inline=False)
+    embed.add_field(name="/estado", value="Revisa si el servidor está listo, ping, versión e IP.", inline=False)
     embed.add_field(name="/jugadores", value="Lista detallada de quiénes están dentro jugando.", inline=False)
     embed.add_field(name="/ip", value="Obtén la dirección IP para conectarte.", inline=False)
     embed.add_field(name="/reglas", value="Lee las normas de convivencia del servidor.", inline=False)
     embed.add_field(name="/ayuda", value="Muestra este panel de ayuda.", inline=False)
-    
+
     await interaction.response.send_message(embed=embed)
 
 # =========================================================
