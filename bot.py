@@ -47,12 +47,14 @@ def run_web_server():
 # FUNCIONES AUXILIARES DE ATERNOS
 # =========================================================
 def init_aternos():
-    """Inicia sesión en Aternos con trazas de diagnóstico."""
+    """Inicia sesión inyectando la cookie con el dominio de Aternos."""
     global ATERNOS_SERVER_INSTANCE
     try:
         print(">>> [1/4] Creando instancia de Aternos...")
         aternos = AternosClient()
-        aternos.session.cookies.set('ATERNOS_SESSION', ATERNOS_SESSION)
+        
+        # Asignar la cookie indicando el dominio exacto
+        aternos.session.cookies.set('ATERNOS_SESSION', ATERNOS_SESSION, domain='aternos.org')
         
         print(">>> [2/4] Solicitando lista de servidores a Aternos...")
         servers = aternos.list_servers()
@@ -67,13 +69,6 @@ def init_aternos():
     except Exception as e:
         print(f">>> Error crítico al conectar con Aternos: {e}")
         ATERNOS_SERVER_INSTANCE = None
-
-def get_aternos_server():
-    """Obtiene la instancia global del servidor. Si no existe, reintenta iniciarla."""
-    global ATERNOS_SERVER_INSTANCE
-    if ATERNOS_SERVER_INSTANCE is None:
-        init_aternos()
-    return ATERNOS_SERVER_INSTANCE
 # =========================================================
 # INICIALIZACIÓN DE DISCORD
 # =========================================================
