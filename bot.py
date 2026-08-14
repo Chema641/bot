@@ -44,12 +44,12 @@ def run_web_server():
 # FUNCIONES AUXILIARES DE ATERNOS
 # =========================================================
 def init_aternos():
-    """Inicia sesión global en Aternos usando la sintaxis actualizada de python-aternos."""
+    """Inicia sesión global en Aternos pasando la cookie como palabra clave."""
     global ATERNOS_SERVER_INSTANCE
     try:
         print("Intentando autenticar con Aternos...")
-        # En la versión actual de python-aternos se pasa la session directamente al constructor
-        aternos = AternosClient(ATERNOS_SESSION)
+        # Se especifica session como parámetro con nombre para evitar el TypeError
+        aternos = AternosClient(session=ATERNOS_SESSION)
         
         servers = aternos.list_servers()
         if servers:
