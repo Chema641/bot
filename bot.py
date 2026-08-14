@@ -37,31 +37,33 @@ app = Flask(__name__)
 def home():
     return "Bot de Discord funcionando correctamente 24/7."
 
+
 # =========================================================
-# FUNCIONES AUXILIARES DE ATERNOS CON CLOUDSCRAPER
+# FUNCIONES AUXILIARES DE ATERNOS CON TIMEOUT
 # =========================================================
 def init_aternos():
-    """Inicia sesión utilizando cloudscraper para evadir los retos JS de Cloudflare."""
+    """Inicia sesión utilizando cloudscraper con timeout estricto para evitar bloqueos."""
     global ATERNOS_SERVER_INSTANCE
     try:
         print(">>> [1/4] Creando scraper evasivo de Cloudflare...")
         
-        # Crear un scraper que simula un navegador real en Linux
+        # Se define delay y delay maximo para evitar bucles infinitos en Cloudflare
         scraper = cloudscraper.create_scraper(
             browser={
                 'browser': 'chrome',
                 'platform': 'linux',
                 'desktop': True
-            }
+            },
+            delay=10
         )
         
-        # Inicializar el cliente de Aternos
         aternos = AternosClient()
-        
-        # Inyectar el scraper como la sesión interna de Aternos
         aternos.session = scraper
         
-        # Configurar cookies
+        # Timeout en la sesión HTTP
+        aternos.session.timeout = 15
+        
+        # Inyectar cookie
         aternos.session.cookies.set('ATERNOS_SESSION', ATERNOS_SESSION, domain='aternos.org')
         
         print(">>> [2/4] Solicitando lista de servidores a Aternos...")
@@ -75,11 +77,11 @@ def init_aternos():
             print(">>> [4/4] No se encontraron servidores en la cuenta.")
             
     except Exception as e:
-        print(f">>> Error crítico al conectar con Aternos: {type(e).__name__} - {e}")
+        print(f">>> Error al conectar con Aternos (Cloudflare bloqueó la petición): {type(e).__name__} - {e}")
         ATERNOS_SERVER_INSTANCE = None
 
 def get_aternos_server():
-    """Obtiene la instancia global del servidor. Si no existe, intenta reconectarla."""
+    """Obtiene la instancia global del servidor."""
     global ATERNOS_SERVER_INSTANCE
     if ATERNOS_SERVER_INSTANCE is None:
         init_aternos()
@@ -320,6 +322,10 @@ if __name__ == "__main__":
     t.start()
 
     print(">>> Inicializando servicios del bot...")
-    init_aternos()
+    
+    # Ejecutamos la conexión a Aternos en un hilo separado para que no congele el arranque del bot
+    aternos_thread = threading.Thread(target=init_aternos)
+    aternos_thread.daemon = True
+    aternos_thread.start()
 
     bot.run(TOKEN)
