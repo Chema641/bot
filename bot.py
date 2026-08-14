@@ -4,10 +4,11 @@ import threading
 from flask import Flask
 import discord
 from discord.ext import commands
+from discord import app_commands
 from mcstatus import JavaServer
 from python_aternos import Client as AternosClient
 
-# 1. Servidor Flask para mantener vivo el servicio en Render
+# 1. Servidor Flask para mantener vivo el servicio en Render (Health Check)
 app = Flask(__name__)
 
 @app.route('/')
@@ -29,9 +30,23 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 SERVER_IP = os.getenv("SERVER_IP", "tu_servidor.aternos.me")
 ATERNOS_SESSION = os.getenv("ATERNOS_SESSION")
 
-# --- COMANDO 1: ESTADO E IP (Usando mcstatus - Inmune a Cloudflare) ---
-@bot.command(name="estado")
-async def estado(ctx):
+# --- EVENTO DE INICIO Y SINCRONIZACIÓN DE COMANDOS SLASH ---
+@bot.event
+async def on_ready():
+    print(f"🤖 Bot conectado exitosamente como: {bot.user}")
+    try:
+        # Sincroniza los comandos Slash con Discord
+        synced = await bot.tree.sync()
+        print(f"✅ Se han sincronizado {len(synced)} comando(s) Slash correctamente.")
+    except Exception as e:
+        print(f"❌ Error al sincronizar comandos: {e}")
+
+# --- COMANDO SLASH 1: /estado ---
+@bot.tree.command(name="estado", description="Muestra el estado actual e IP del servidor de Minecraft")
+async def estado(interaction: discord.Interaction):
+    # Indicar a Discord que procesaremos la solicitud (evita timeout de 3 seg)
+    await interaction.response.defer()
+    
     try:
         server = await JavaServer.async_lookup(SERVER_IP)
         status = await server.async_status()
@@ -43,7 +58,7 @@ async def estado(ctx):
         )
         embed.add_field(name="Jugadores", value=f"{status.players.online}/{status.players.max}")
         embed.add_field(name="Versión", value=f"{status.version.name}")
-        await ctx.send(embed=embed)
+        await interaction.followup.send(embed=embed)
         
     except Exception:
         embed = discord.Embed(
@@ -51,16 +66,16 @@ async def estado(ctx):
             description=f"El servidor en `{SERVER_IP}` no está respondiendo en este momento.",
             color=discord.Color.red()
         )
-        await ctx.send(embed=embed)
+        await interaction.followup.send(embed=embed)
 
-# --- COMANDO 2: ENCENDER (Usando Cookie de Aternos) ---
-@bot.command(name="encender")
-async def encender(ctx):
+# --- COMANDO SLASH 2: /encender ---
+@bot.tree.command(name="encender", description="Envia la orden para encender el servidor de Aternos")
+async def encender(interaction: discord.Interaction):
     if not ATERNOS_SESSION:
-        await ctx.send("❌ No se ha configurado la variable `ATERNOS_SESSION` en Render.")
+        await interaction.response.send_message("❌ No se ha configurado la variable `ATERNOS_SESSION` en Render.", ephemeral=True)
         return
 
-    await ctx.send("⏳ Intentando enviar la orden de encendido a Aternos...")
+    await interaction.response.send_message("⏳ Intentando enviar la orden de encendido a Aternos...")
     
     def start_aternos():
         # Inicializa cliente usando únicamente la cookie de sesión
@@ -70,17 +85,17 @@ async def encender(ctx):
             servidor = servers[0]
             servidor.start()
             return True, servidor.status
-        return False, "No se encontraron servidores."
+        return False, "No se encontraron servidores asociados a la cuenta."
 
     try:
-        # Ejecutar llamada bloqueante de aternos en un hilo secundario
+        # Ejecutar llamada de aternos en un hilo secundario
         success, status_msg = await asyncio.to_thread(start_aternos)
         if success:
-            await ctx.send(f"🚀 ¡Petición enviada! Estado actual del servidor: **{status_msg}**")
+            await interaction.followup.send(f"🚀 ¡Petición enviada! Estado actual del servidor: **{status_msg}**")
         else:
-            await ctx.send(f"⚠️ No se pudo iniciar: {status_msg}")
+            await interaction.followup.send(f"⚠️ No se pudo iniciar: {status_msg}")
     except Exception as e:
-        await ctx.send(f"❌ Error al conectar con Aternos (posible cookie expirada): `{e}`")
+        await interaction.followup.send(f"❌ Error al conectar con Aternos (posible cookie expirada): `{e}`")
 
 # Iniciar bot
 TOKEN = os.getenv("DISCORD_TOKEN")
