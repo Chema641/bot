@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from mcstatus import JavaServer
-from pythonaternos import Client as AternosClient
+from python_aternos import Client as AternosClient
 from flask import Flask
 
 # =========================================================
